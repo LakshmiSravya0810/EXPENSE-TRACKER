@@ -1,13 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import '../App.css';
-
 
 const categories = [
   'Food', 'Transport', 'Shopping', 'Work',
   'Utilities', 'Health', 'Entertainment', 'Travel'
 ];
 
-function App() {
+const defaultBudgets = {
+  Food: 3000,
+  Transport: 2000,
+  Shopping: 4000,
+  Work: 2500,
+  Utilities: 1500,
+  Health: 1000,
+  Entertainment: 2000,
+  Travel: 3000,
+};
+
+function HomePage() {
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
@@ -22,15 +32,38 @@ function App() {
   const [editPopupVisible, setEditPopupVisible] = useState(false);
   const [editExpense, setEditExpense] = useState(null);
 
-  useEffect(() => {
-    fetchExpenses();
-  }, []);
+  const [budgetAlerts, setBudgetAlerts] = useState([]);
+  const [showBudgetPopup, setShowBudgetPopup] = useState(false);
 
-  const fetchExpenses = async () => {
+  const fetchExpenses = useCallback(async () => {
     const response = await fetch('http://localhost:8080/api/expenses');
     const data = await response.json();
     setExpenses(data);
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchExpenses();
+  }, [fetchExpenses]);
+
+  useEffect(() => {
+    const totals = {};
+    expenses.forEach(exp => {
+      if (!totals[exp.category]) totals[exp.category] = 0;
+      totals[exp.category] += Number(exp.amount);
+    });
+
+    const alerts = Object.entries(defaultBudgets)
+      .filter(([cat, limit]) => (totals[cat] || 0) > limit)
+      .map(([cat, limit]) => ({
+        category: cat,
+        exceededBy: (totals[cat] - limit).toFixed(2)
+      }));
+
+    if (alerts.length > 0) {
+      setBudgetAlerts(alerts);
+      setShowBudgetPopup(true);
+    }
+  }, [expenses]);
 
   const handleAddExpense = async () => {
     if (!title || !amount || !date || !category) return;
@@ -144,37 +177,29 @@ function App() {
               className={`filter-pill ${filterCategories.includes(cat) ? 'active' : ''}`}
               onClick={() => toggleCategory(cat)}
             >
-              {cat === 'Food' ? '🍔 Food' :
-              cat === 'Transport' ? '🚌 Transport' :
-              cat === 'Shopping' ? '🛍️ Shopping' :
-              cat === 'Work' ? '💻 Work' :
-              cat === 'Utilities' ? '💡 Utilities' :
-              cat === 'Health' ? '💊 Health' :
-              cat === 'Entertainment' ? '🎉 Entertainment' :
-              cat === 'Travel' ? '✈️ Travel' : cat}
+              {cat}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Date Filter */}
+      {/* Date and Search Filters */}
       <div style={{ marginBottom: '25px' }}>
-        <label htmlFor="startDate" style={{ marginRight: 12 }}><strong>Start Date:</strong></label>
-        <input type="date" id="startDate" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-        <label htmlFor="endDate" style={{ marginLeft: 30, marginRight: 12 }}><strong>End Date:</strong></label>
-        <input type="date" id="endDate" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        <label><strong>Start Date:</strong></label>
+        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ marginRight: 20, marginLeft: 10 }} />
+        <label><strong>End Date:</strong></label>
+        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={{ marginLeft: 10 }} />
       </div>
 
-      {/* Search by Title */}
       <div style={{ marginBottom: '30px' }}>
-        <label htmlFor="searchTitle" style={{ marginRight: '10px' }}><strong>Search Title:</strong></label>
+        <label htmlFor="searchTitle"><strong>Search Title:</strong></label>
         <input
           type="text"
           id="searchTitle"
           placeholder="Type to search expenses..."
           value={searchTitle}
           onChange={(e) => setSearchTitle(e.target.value)}
-          style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #ccc', minWidth: '220px' }}
+          style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #ccc', marginLeft: 10 }}
         />
       </div>
 
@@ -184,7 +209,6 @@ function App() {
           marginBottom: '25px',
           fontSize: '18px',
           fontWeight: 'bold',
-          color: '#333',
           backgroundColor: '#e8f5e9',
           padding: '12px 20px',
           borderRadius: '10px',
@@ -214,7 +238,7 @@ function App() {
         )}
       </div>
 
-      {/* Edit Expense Popup */}
+      {/* Edit Popup */}
       {editPopupVisible && (
         <div className="popup-overlay">
           <div className="popup-box">
@@ -249,8 +273,25 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* 🔔 Budget Alert Popup */}
+      {showBudgetPopup && (
+        <div className="popup-overlay">
+          <div className="budget-popup">
+            <h3>⚠️ Budget Exceeded</h3>
+            <ul>
+              {budgetAlerts.map((alert, i) => (
+                <li key={i}>
+                  🔔 {alert.category} exceeded by ₹{alert.exceededBy}
+                </li>
+              ))}
+            </ul>
+            <button className="popup-close-btn" onClick={() => setShowBudgetPopup(false)}>OK</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-export default App;
+export default HomePage;
